@@ -1,6 +1,6 @@
 {
-  "name": "Chronos Journal",
-  "description": "A minimalist Dark Academia personal tracker with 30-day activity grids, photo progress, and daily diaries.",
+  "name": "Chronos",
+  "description": "A Dark Academia sanctuary for rituals and endurance.",
   "requestFramePermissions": ["camera"],
   "majorCapabilities": []
 }

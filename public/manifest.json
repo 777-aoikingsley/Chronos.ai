@@ -1,14 +1,14 @@
 {
-  "name": "Chronos Journal",
+  "name": "Chronos",
   "short_name": "Chronos",
-  "description": "Aesthetic endurance and ritual tracking.",
+  "description": "Dark academia ritual tracking.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#121412",
-  "theme_color": "#50C878",
+  "background_color": "#09090b",
+  "theme_color": "#c2a97e",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/3241/3241618.png",
+      "src": "https://img.icons8.com/ios-filled/512/c2a97e/moon-satellite.png",
       "sizes": "512x512",
       "type": "image/png"
     }

@@ -111,10 +111,10 @@ const NotificationManager = () => {
         settings.forEach(setting => {
           const activity = ACTIVITIES.find(a => a.id === setting.id);
           if (activity) {
-            registration.showNotification(`${activity.name} Reminder`, {
-              body: `It's time for your ${activity.name.toLowerCase()} session.`,
-              icon: 'https://cdn-icons-png.flaticon.com/512/3241/3241618.png',
-              badge: 'https://cdn-icons-png.flaticon.com/512/3241/3241618.png',
+            registration.showNotification(`${activity.name.toUpperCase()} TIME!`, {
+              body: `The sanctuary is calling. Begin your ${activity.name.toLowerCase()} ritual.`,
+              icon: 'https://img.icons8.com/ios-filled/512/c2a97e/moon-satellite.png',
+              badge: 'https://img.icons8.com/ios-filled/512/c2a97e/moon-satellite.png',
               vibrate: [200, 100, 200],
               tag: `reminder-${activity.id}`,
               renotify: true
@@ -243,17 +243,17 @@ const Timer = ({ activityId }: { activityId: string }) => {
       // Attempt Service Worker notification
       if ("Notification" in window && Notification.permission === 'granted') {
         navigator.serviceWorker.ready.then(registration => {
-          registration.showNotification(`${ACTIVITIES.find(a => a.id === activityId)?.name || 'Timer'} Complete`, {
-            body: `Your focus block is finished. Well done.`,
-            icon: 'https://cdn-icons-png.flaticon.com/512/3241/3241618.png',
-            badge: 'https://cdn-icons-png.flaticon.com/512/3241/3241618.png',
+          registration.showNotification(`${ACTIVITIES.find(a => a.id === activityId)?.name.toUpperCase() || 'Ritual'} Complete`, {
+            body: `Your focus cycle is finished. Achievement logged.`,
+            icon: 'https://img.icons8.com/ios-filled/512/c2a97e/moon-satellite.png',
+            badge: 'https://img.icons8.com/ios-filled/512/c2a97e/moon-satellite.png',
             vibrate: [500, 100, 500],
             tag: 'timer-complete',
             renotify: true
           });
         });
       } else {
-        alert('Time is up!');
+        alert('Cycle complete!');
       }
     }
     return () => clearInterval(interval);
@@ -480,10 +480,10 @@ const TrendsView = ({ onBack }: { onBack: () => void }) => {
                   const registration = await navigator.serviceWorker.ready;
                   if (navigator.vibrate) navigator.vibrate(200);
                   
-                  await registration.showNotification("Chronos Rituals", {
+                  await registration.showNotification("CHRONOS RITUALS", {
                     body: "The sanctuary is ready. Your cycle begins now.",
-                    icon: "https://cdn-icons-png.flaticon.com/512/3241/3241618.png",
-                    badge: "https://cdn-icons-png.flaticon.com/512/3241/3241618.png",
+                    icon: "https://img.icons8.com/ios-filled/512/c2a97e/moon-satellite.png",
+                    badge: "https://img.icons8.com/ios-filled/512/c2a97e/moon-satellite.png",
                     vibrate: [200, 100, 200]
                   });
                 } else {
@@ -926,7 +926,7 @@ export default function App() {
         <header className="mb-12 flex justify-between items-start">
           <div>
             <h1 className="serif text-4xl font-medium mb-1 tracking-tight">Chronos</h1>
-            <p className="text-xs uppercase tracking-[0.3em] opacity-30">Aesthetic Endurance</p>
+            <p className="text-xs uppercase tracking-[0.3em] opacity-30 text-[#c2a97e] font-bold">Dark Academia Sanctuary</p>
           </div>
           <button 
             onClick={handleTrendsTap}
