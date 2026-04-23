@@ -1,1 +1,1 @@
-{\n  "short_name": "Chronos",\n  "name": "Chronos: Aesthetic Endurance",\n  "start_url": "/",\n  "display": "standalone",\n  "theme_color": "#121412",\n  "background_color": "#121412",\n  "icons": [\n    {\n      "src": "favicon.ico",\n      "sizes": "64x64 32x32 24x24 16x16",\n      "type": "image/x-icon"\n    }\n  ]\n}
+{"name":"Chronos","short_name":"Chronos","start_url":"/","display":"standalone","background_color":"#121412","theme_color":"#121412"}
