@@ -903,6 +903,43 @@ export default function App() {
   const [selectedActivity, setSelectedActivity] = useState<typeof ACTIVITIES[0] | null>(null);
   const [showTrends, setShowTrends] = useState(false);
   const [toggleLocation, setToggleLocation] = useState<{ x: number, y: number } | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+
+  useEffect(() => {
+    // Check if app is already installed/running as standalone
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setIsInstalled(true);
+    }
+
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    const handleAppInstalled = () => {
+      setDeferredPrompt(null);
+      setIsInstalled(true);
+      console.log('Chronos was installed');
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
   
   const handleItemTap = (e: React.MouseEvent, activity: typeof ACTIVITIES[0]) => {
     setToggleLocation({ x: e.clientX, y: e.clientY });
@@ -970,7 +1007,24 @@ export default function App() {
           </AnimatePresence>
         </div>
         
-        <footer className="mt-16 text-center">
+        <footer className="mt-16 text-center pb-12">
+          {(!isInstalled && deferredPrompt) && (
+            <motion.button
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              onClick={handleInstallClick}
+              className="mb-8 px-6 py-3 bg-[#c2a97e]/10 border border-[#c2a97e]/30 text-[#c2a97e] text-[10px] uppercase tracking-[0.25em] rounded-xl font-bold hover:bg-[#c2a97e]/20 transition-all flex items-center justify-center gap-2 mx-auto"
+            >
+              <Smartphone size={14} /> Establish Permanent Sanctuary
+            </motion.button>
+          )}
+
+          {(!isInstalled && !deferredPrompt) && (
+            <div className="mb-8 p-4 bg-white/5 rounded-xl border border-white/5 text-[9px] uppercase tracking-widest opacity-40 leading-relaxed max-w-[200px] mx-auto">
+              To install: Use "Add to Home Screen" in your browser menu.
+            </div>
+          )}
+
           <div className="flex items-center justify-center gap-2 opacity-20 mb-1">
             <Smartphone size={10} />
             <span className="text-[10px] uppercase tracking-[0.2em]">Private Local Database</span>
