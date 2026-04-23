@@ -239,8 +239,22 @@ const Timer = ({ activityId }: { activityId: string }) => {
     } else if (seconds === 0 && isActive) {
       setIsActive(false);
       saveDuration();
-      // Browser alert as fallback for notifications
-      alert('Time is up!');
+      
+      // Attempt Service Worker notification
+      if ("Notification" in window && Notification.permission === 'granted') {
+        navigator.serviceWorker.ready.then(registration => {
+          registration.showNotification(`${ACTIVITIES.find(a => a.id === activityId)?.name || 'Timer'} Complete`, {
+            body: `Your focus block is finished. Well done.`,
+            icon: 'https://cdn-icons-png.flaticon.com/512/3241/3241618.png',
+            badge: 'https://cdn-icons-png.flaticon.com/512/3241/3241618.png',
+            vibrate: [500, 100, 500],
+            tag: 'timer-complete',
+            renotify: true
+          });
+        });
+      } else {
+        alert('Time is up!');
+      }
     }
     return () => clearInterval(interval);
   }, [isActive, seconds]);
@@ -719,7 +733,7 @@ const DetailView = ({ activity, onBack }: { activity: typeof ACTIVITIES[0], onBa
         />
       </section>
 
-      {(activity.id === 'workout' || activity.id === 'study') && (
+      {(activity.type === 'detail') && (
         <section className="mb-8">
           <Timer activityId={activity.id} />
         </section>
