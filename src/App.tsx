@@ -101,18 +101,29 @@ const NotificationManager = () => {
     if (!("Notification" in window)) return;
 
     const checkReminders = async () => {
-      const now = format(new Date(), 'HH:mm');
-      const settings = await db.reminderSettings.where({ time: now, enabled: 1 }).toArray();
+      if (Notification.permission !== 'granted') return;
       
-      settings.forEach(setting => {
-        const activity = ACTIVITIES.find(a => a.id === setting.id);
-        if (activity) {
-          new Notification(`${activity.name} Reminder`, {
-            body: `It's time for your ${activity.name.toLowerCase()} session. Stay focused!`,
-            icon: '/favicon.ico'
-          });
-        }
-      });
+      const now = format(new Date(), 'HH:mm');
+      try {
+        const settings = await db.reminderSettings.where('[time+enabled]').equals([now, 1]).toArray();
+        const registration = await navigator.serviceWorker.ready;
+        
+        settings.forEach(setting => {
+          const activity = ACTIVITIES.find(a => a.id === setting.id);
+          if (activity) {
+            registration.showNotification(`${activity.name} Reminder`, {
+              body: `It's time for your ${activity.name.toLowerCase()} session.`,
+              icon: 'https://cdn-icons-png.flaticon.com/512/3241/3241618.png',
+              badge: 'https://cdn-icons-png.flaticon.com/512/3241/3241618.png',
+              vibrate: [200, 100, 200],
+              tag: `reminder-${activity.id}`,
+              renotify: true
+            });
+          }
+        });
+      } catch (err) {
+        console.error("Reminder check failed:", err);
+      }
     };
 
     const interval = setInterval(checkReminders, 60000);
@@ -171,12 +182,16 @@ const ReminderToggle = ({ activityId }: { activityId: string }) => {
   const handleToggle = async () => {
     const isEnabled = !settings?.enabled;
     if (isEnabled && Notification.permission !== 'granted') {
-      await Notification.requestPermission();
+      const resp = await Notification.requestPermission();
+      if (resp !== 'granted') {
+        alert("Notification permission is required for reminders.");
+        return;
+      }
     }
     await db.reminderSettings.put({
       id: activityId,
       time: time,
-      enabled: isEnabled
+      enabled: isEnabled ? 1 : 0
     });
   };
 
@@ -204,10 +219,16 @@ const ReminderToggle = ({ activityId }: { activityId: string }) => {
 };
 
 const Timer = ({ activityId }: { activityId: string }) => {
+  const [targetMinutes, setTargetMinutes] = useState(25);
+  const [isEditing, setIsEditing] = useState(false);
   const [seconds, setSeconds] = useState(25 * 60);
   const [isActive, setIsActive] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   
+  useEffect(() => {
+    setSeconds(targetMinutes * 60);
+  }, [targetMinutes]);
+
   useEffect(() => {
     let interval: number | undefined;
     if (isActive && seconds > 0) {
@@ -215,9 +236,11 @@ const Timer = ({ activityId }: { activityId: string }) => {
         setSeconds(s => s - 1);
         setElapsed(e => e + 1);
       }, 1000);
-    } else if (seconds === 0) {
+    } else if (seconds === 0 && isActive) {
       setIsActive(false);
       saveDuration();
+      // Browser alert as fallback for notifications
+      alert('Time is up!');
     }
     return () => clearInterval(interval);
   }, [isActive, seconds]);
@@ -250,7 +273,7 @@ const Timer = ({ activityId }: { activityId: string }) => {
   
   const reset = () => {
     setIsActive(false);
-    setSeconds(25 * 60);
+    setSeconds(targetMinutes * 60);
     setElapsed(0);
   };
 
@@ -259,17 +282,39 @@ const Timer = ({ activityId }: { activityId: string }) => {
 
   return (
     <div className="flex flex-col items-center py-6 border-y border-[#2C3E50]/50">
-      <div className="text-5xl font-mono tracking-tighter mb-4 text-[#F5F5DC]">
-        {String(minutes).padStart(2, '0')}:{String(remainingSeconds).padStart(2, '0')}
-      </div>
+      <div className="text-xs uppercase tracking-[0.2em] opacity-30 mb-4">Focus Timer</div>
+      {isEditing ? (
+        <div className="flex items-center gap-2 mb-4">
+          <input 
+            type="number" 
+            value={targetMinutes} 
+            onChange={(e) => setTargetMinutes(Math.max(1, parseInt(e.target.value) || 1))}
+            className="bg-[#2C3E50]/20 border border-[#2C3E50] rounded-lg px-3 py-1 text-2xl font-mono w-24 text-center outline-none focus:border-[#50C878]"
+            autoFocus
+            onBlur={() => setIsEditing(false)}
+            onKeyDown={(e) => e.key === 'Enter' && setIsEditing(false)}
+          />
+          <span className="text-sm opacity-50">min</span>
+        </div>
+      ) : (
+        <div 
+          onClick={() => !isActive && setIsEditing(true)}
+          className={cn("text-5xl font-mono tracking-tighter mb-4 text-[#F5F5DC]", !isActive && "cursor-pointer hover:text-[#50C878] transition-colors")}
+        >
+          {String(minutes).padStart(2, '0')}:{String(remainingSeconds).padStart(2, '0')}
+        </div>
+      )}
       <div className="flex gap-4">
-        <button onClick={toggle} className="p-2 bg-[#2C3E50] rounded-full hover:bg-[#3D5A73] transition-colors">
+        <button onClick={toggle} className="p-3 bg-[#2C3E50] rounded-full hover:bg-[#3D5A73] transition-all active:scale-90">
           {isActive ? <Pause size={20} /> : <Play size={20} />}
         </button>
-        <button onClick={reset} className="p-2 bg-[#2C3E50] rounded-full hover:bg-[#3D5A73] transition-colors">
+        <button onClick={reset} className="p-3 bg-[#2C3E50] rounded-full hover:bg-[#3D5A73] transition-all active:scale-90">
           <RotateCcw size={20} />
         </button>
       </div>
+      {!isActive && !isEditing && (
+        <p className="text-[10px] mt-4 opacity-20 uppercase tracking-widest italic">Tap time to edit duration</p>
+      )}
     </div>
   );
 };
@@ -394,25 +439,64 @@ const TrendsView = ({ onBack }: { onBack: () => void }) => {
       <section className="p-6 bg-emerald-950/20 rounded-2xl border border-emerald-500/20">
         <div className="flex items-center gap-3 mb-4">
           <ShieldCheck className="text-emerald-500" size={20} />
-          <h3 className="serif text-xl font-medium">Privacy & Data</h3>
+          <h3 className="serif text-xl font-medium">Privacy & Notifications</h3>
         </div>
         <p className="text-xs opacity-50 leading-relaxed mb-6 font-serif">
           Chronos uses <span className="text-emerald-400">Private Local Storage (IndexedDB)</span>. 
-          Your photos, diaries, and logs are saved directly on your phone's memory. 
-          Nothing is ever uploaded to a cloud server, ensuring your data stays private and the app remains free.
+          Nothing is ever uploaded to a cloud server. 
+          <br /><br />
+          <span className="text-[#F5F5DC]/80 font-bold underline">Notification Tips:</span>
+          <br />
+          If reminders aren't arriving:
+          1. Use the "Install App" feature in your browser.
+          2. Ensure notifications are allowed in your phone's system settings for the browser.
+          3. Tap the bell icon in any activity to request permission.
         </p>
-        <button 
-          onClick={async () => {
-             if(confirm("Are you sure? This will permanently delete all your diary entries, activity logs, and photos from this device.")) {
-               await db.activityLogs.clear();
-               await db.reminderSettings.clear();
-               window.location.reload();
-             }
-          }}
-          className="w-full py-3 bg-red-950/20 border border-red-500/30 text-red-400 text-xs uppercase tracking-widest rounded-xl hover:bg-red-500/10 transition-colors"
-        >
-          Clear All Local Data
-        </button>
+        
+        <div className="space-y-3">
+          <button 
+            onClick={async () => {
+              try {
+                if (!("Notification" in window)) {
+                  alert("This browser does not support notifications.");
+                  return;
+                }
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                  const registration = await navigator.serviceWorker.ready;
+                  if (navigator.vibrate) navigator.vibrate(200);
+                  
+                  await registration.showNotification("Chronos Rituals", {
+                    body: "The sanctuary is ready. Your cycle begins now.",
+                    icon: "https://cdn-icons-png.flaticon.com/512/3241/3241618.png",
+                    badge: "https://cdn-icons-png.flaticon.com/512/3241/3241618.png",
+                    vibrate: [200, 100, 200]
+                  });
+                } else {
+                  alert(`Permission state: ${permission}. You must allow notifications in browser/system settings.`);
+                }
+              } catch (e: any) {
+                alert(`Error: ${e.message || "Unknown error during notification"}`);
+              }
+            }}
+            className="w-full py-3 bg-[#50C878]/10 border border-[#50C878]/30 text-[#50C878] text-xs uppercase tracking-widest rounded-xl hover:bg-[#50C878]/20 transition-colors flex items-center justify-center gap-2"
+          >
+            <Bell size={14} /> Test Notifications
+          </button>
+
+          <button 
+            onClick={async () => {
+               if(confirm("Are you sure? This will permanently delete all your diary entries, activity logs, and photos from this device.")) {
+                 await db.activityLogs.clear();
+                 await db.reminderSettings.clear();
+                 window.location.reload();
+               }
+            }}
+            className="w-full py-3 bg-red-950/20 border border-red-500/30 text-red-100 text-xs uppercase tracking-widest rounded-xl hover:bg-red-500/10 transition-colors"
+          >
+            Clear All Local Data
+          </button>
+        </div>
       </section>
     </div>
   );
@@ -439,11 +523,44 @@ const DetailView = ({ activity, onBack }: { activity: typeof ACTIVITIES[0], onBa
         date: selectedDate,
         type: activity.id,
         completed: false,
-        checklistItems: newItems
+        checklistItems: newItems,
+        photos: []
       });
     }
     setNewItemText('');
   };
+
+  // Logic to auto-fill checklist from previous day if empty
+  useEffect(() => {
+    const autoFill = async () => {
+      if (!selectedLog || selectedLog.checklistItems.length === 0) {
+        // Find most recent log of this type
+        const lastLog = await db.activityLogs
+          .where('type').equals(activity.id)
+          .and(l => l.date < selectedDate)
+          .reverse()
+          .first();
+        
+        if (lastLog && lastLog.checklistItems.length > 0) {
+          // Reset 'done' status for new day
+          const resetItems = lastLog.checklistItems.map(item => ({ ...item, done: false }));
+          
+          if (selectedLog?.id) {
+            await db.activityLogs.update(selectedLog.id, { checklistItems: resetItems });
+          } else {
+            await db.activityLogs.add({
+              date: selectedDate,
+              type: activity.id,
+              completed: false,
+              checklistItems: resetItems,
+              photos: []
+            });
+          }
+        }
+      }
+    };
+    autoFill();
+  }, [selectedDate, activity.id, selectedLog]);
 
   const handleToggleItem = async (index: number) => {
     if (!selectedLog) return;
@@ -465,26 +582,49 @@ const DetailView = ({ activity, onBack }: { activity: typeof ACTIVITIES[0], onBa
     await db.activityLogs.update(selectedLog.id!, { checklistItems: newItems, completed: isCompleted });
   };
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, isInstructional: boolean = false) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64 = reader.result as string;
-      if (selectedLog?.id) {
-        await db.activityLogs.update(selectedLog.id, { photoUrl: base64 });
+      if (isInstructional) {
+        if (selectedLog?.id) {
+          await db.activityLogs.update(selectedLog.id, { instructionalPhoto: base64 });
+        } else {
+          await db.activityLogs.add({
+            date: selectedDate,
+            type: activity.id,
+            completed: false,
+            instructionalPhoto: base64,
+            checklistItems: [],
+            photos: []
+          });
+        }
       } else {
-        await db.activityLogs.add({
-          date: selectedDate,
-          type: activity.id,
-          completed: false,
-          photoUrl: base64,
-          checklistItems: []
-        });
+        const currentPhotos = selectedLog?.photos || [];
+        const newPhotos = [...currentPhotos, base64];
+        if (selectedLog?.id) {
+          await db.activityLogs.update(selectedLog.id, { photos: newPhotos });
+        } else {
+          await db.activityLogs.add({
+            date: selectedDate,
+            type: activity.id,
+            completed: false,
+            photos: newPhotos,
+            checklistItems: []
+          });
+        }
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleRemovePhoto = async (photoIndex: number) => {
+    if (!selectedLog || !selectedLog.photos) return;
+    const newPhotos = selectedLog.photos.filter((_, i) => i !== photoIndex);
+    await db.activityLogs.update(selectedLog.id!, { photos: newPhotos });
   };
 
   return (
@@ -513,34 +653,77 @@ const DetailView = ({ activity, onBack }: { activity: typeof ACTIVITIES[0], onBa
         />
       </section>
 
-      <section 
-        onClick={() => fileInputRef.current?.click()}
-        className="mb-8 relative aspect-video border-2 border-dashed border-[#2C3E50] rounded-2xl flex flex-col items-center justify-center gap-2 group cursor-pointer overflow-hidden transition-all hover:bg-[#2C3E50]/10"
-      >
-        {selectedLog?.photoUrl ? (
-          <img src={selectedLog.photoUrl} alt="Progress" className="w-full h-full object-cover" />
-        ) : (
-          <div className="flex flex-col items-center gap-3">
-            <Camera size={40} className="opacity-30 group-hover:opacity-100 transition-opacity" />
-            <div className="text-center">
-              <p className="text-sm font-serif italic text-[#F5F5DC]/80">Tap to upload today's photo</p>
-              <p className="text-[10px] uppercase tracking-widest opacity-30 mt-1">Gallery • Drive • Files • Camera</p>
+      <section className="mb-8">
+        <h2 className="text-xs uppercase tracking-[0.2em] mb-4 opacity-50 flex justify-between">
+          <span>Daily Records</span>
+        </h2>
+        
+        {/* Instructional Photo (Permanent reference) */}
+        {activity.id === 'workout' && (
+          <div className="mb-6">
+            <h3 className="text-[10px] uppercase tracking-widest opacity-30 mb-2 italic">Master Plan / Routine Reference</h3>
+            <div 
+              onClick={() => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*';
+                input.onchange = (e) => handlePhotoUpload(e as any, true);
+                input.click();
+              }}
+              className="relative aspect-video border border-[#2C3E50]/50 rounded-xl flex items-center justify-center overflow-hidden cursor-pointer hover:bg-white/5 transition-all"
+            >
+              {selectedLog?.instructionalPhoto ? (
+                <img src={selectedLog.instructionalPhoto} className="w-full h-full object-cover" />
+              ) : (
+                <div className="flex flex-col items-center gap-2 opacity-20">
+                  <ImageIcon size={24} />
+                  <span className="text-[9px] uppercase tracking-widest">Upload Reference Image</span>
+                </div>
+              )}
             </div>
           </div>
         )}
+
+        {/* Daily Photos Gallery */}
+        <div className="space-y-3">
+          <h3 className="text-[10px] uppercase tracking-widest opacity-30 italic">Progress Captures</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {selectedLog?.photos?.map((photo, idx) => (
+              <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-[#2C3E50] group">
+                <img src={photo} className="w-full h-full object-cover" />
+                <button 
+                  onClick={(e) => { e.stopPropagation(); handleRemovePhoto(idx); }}
+                  className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            ))}
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="aspect-square border-2 border-dashed border-[#2C3E50] rounded-xl flex flex-col items-center justify-center gap-2 hover:bg-[#2C3E50]/10 transition-all active:scale-95"
+            >
+              <Camera size={24} className="opacity-30" />
+              <span className="text-[9px] uppercase tracking-wider opacity-30">Add Photo</span>
+            </button>
+          </div>
+        </div>
+
         <input 
           key={selectedDate}
           type="file" 
           ref={fileInputRef} 
-          onChange={handlePhotoUpload} 
+          onChange={(e) => handlePhotoUpload(e)} 
           accept="image/*" 
           className="hidden" 
         />
       </section>
 
-      <section className="mb-8">
-        <Timer activityId={activity.id} />
-      </section>
+      {(activity.id === 'workout' || activity.id === 'study') && (
+        <section className="mb-8">
+          <Timer activityId={activity.id} />
+        </section>
+      )}
 
       <section>
         <div className="flex items-center justify-between mb-4">

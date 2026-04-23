@@ -5,7 +5,9 @@ export interface ActivityLog {
   date: string; // YYYY-MM-DD
   type: string; // Workout, Haircare, etc.
   completed: boolean;
-  photoUrl?: string;
+  photoUrl?: string; // Legacy
+  photos?: string[]; // Array of base64 photos
+  instructionalPhoto?: string; // Permanent reference photo for workouts
   diaryEntry?: string;
   durationMinutes?: number;
   checklistItems: { id: string; text: string; done: boolean }[];
